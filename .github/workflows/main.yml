@@ -36,4 +36,4 @@ jobs:
 
     - name: Upload to AWS Lambda
       run: |
-        aws lambda update-function-code --function-name my-function-name --zip-file fileb://function.zip
+        aws lambda update-function-code --function-name get-oil-prices --zip-file fileb://function.zip
