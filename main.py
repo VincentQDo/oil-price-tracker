@@ -131,7 +131,7 @@ def store_prices(prices, supplier_name, supplier_url):
         table.put_item(
             Item={
                 'date': datetime.now().isoformat(),
-                'quantity': quantity,
+                'gallons': quantity,
                 'price': price,
                 'supplier_name': supplier_name,
                 'supplier_url': supplier_url,
