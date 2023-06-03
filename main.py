@@ -126,7 +126,7 @@ class OilDepot(OilPrice):
         return prices
 
 def store_prices(prices, supplier_name, supplier_url):
-    table = OilPrice.dynamodb.Table('OilPrice')
+    table = OilPrice.dynamodb.Table('Oil-Price')
     for index, (quantity, price) in enumerate(prices):
         table.put_item(
             Item={
