@@ -138,7 +138,7 @@ def store_prices(prices, supplier_name, supplier_url):
             }
         )
 
-def job():
+def job(event, lambda_context):
     suppliers = [OilExpress(), DanBell(), AllStateFuel(), OilPatchFuel(), OilDepot()]
     for supplier in suppliers:
         data = supplier.get_prices()
@@ -146,6 +146,3 @@ def job():
         print('Storing prices in DynamoDB...')
         store_prices(data['prices'], data['supplier_name'], data['supplier_url'])
     print('Done!')
-
-
-job()
