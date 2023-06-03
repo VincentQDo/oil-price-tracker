@@ -4,7 +4,6 @@ from bs4 import BeautifulSoup
 import boto3
 import re
 from decimal import Decimal
-from boto3.dynamodb.conditions import Key
 
 class OilPrice:
     dynamodb = boto3.resource('dynamodb', region_name="us-east-2")
