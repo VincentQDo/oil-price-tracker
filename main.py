@@ -128,18 +128,19 @@ class OilDepot(OilPrice):
 def store_prices(prices, supplier_name, supplier_url):
     table = OilPrice.dynamodb.Table('Oil-Price')
     for index, (quantity, price) in enumerate(prices):
-        item = {
-                'date': datetime.now().isoformat(),
-                'gallons': quantity,
-                'price': price,
-                'supplier_name': supplier_name,
-                'supplier_url': supplier_url,
-            }
-        print(f"Storing item {index + 1} of {len(prices)}")
-        print(item)
-        table.put_item(
-            Item=item
-        )
+        if quantity == 150:
+            item = {
+                    'date': datetime.now().isoformat(),
+                    'gallons': quantity,
+                    'price': price,
+                    'supplier_name': supplier_name,
+                    'supplier_url': supplier_url,
+                }
+            print(f"Storing item {index + 1} of {len(prices)}")
+            print(item)
+            table.put_item(
+                Item=item
+            )
 
 def job(event, lambda_context):
     suppliers = [OilExpress(), DanBell(), AllStateFuel(), OilPatchFuel(), OilDepot()]
