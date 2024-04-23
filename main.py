@@ -187,5 +187,5 @@ def job(event, lambda_context):
         data = supplier.get_prices()
         print("Parsed prices: ", data)
         print("Storing prices in DynamoDB...")
-        # store_prices(data['prices'], data['supplier_name'], data['supplier_url'])
+        store_prices(data["prices"], data["supplier_name"], data["supplier_url"])
     print("Done!")
