@@ -68,7 +68,7 @@ class OilExpress(OilPrice):
 
 class OilPatchFuel(OilPrice):
     def __init__(self):
-        super().__init__("Oil Patch Fuel", "https://oilpatchfuel.com/", r'Prices as low as \$([\d.]+) per gallon for online orders of (\d+) gallons or more\*', 'et_pb_text_inner')
+        super().__init__("Oil Patch Fuel", "https://oilpatchfuel.com/", r'\$([\d.]+) per gallon for online orders of (\d+) gallons or more\*', 'et_pb_text_inner')
 
     def extract_prices(self, elements):
         prices = []
