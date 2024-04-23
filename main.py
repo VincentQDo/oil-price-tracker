@@ -189,6 +189,3 @@ def job(event, lambda_context):
         print("Storing prices in DynamoDB...")
         # store_prices(data['prices'], data['supplier_name'], data['supplier_url'])
     print("Done!")
-
-
-job("", "")
