@@ -56,11 +56,12 @@ class DanBell(OilPrice):
     def extract_prices(self, elements):
         prices = []
         for elem in elements:
-            match = self.pattern.search(elem.text)
-            if match:
-                quantity = int(match.group(1))
-                price = Decimal(match.group(2))
-                prices.append((quantity, price))
+            if self.pattern != None:
+                match = self.pattern.search(elem.text)
+                if match:
+                    quantity = int(match.group(1))
+                    price = Decimal(match.group(2))
+                    prices.append((quantity, price))
         return prices
 
 
@@ -69,18 +70,19 @@ class OilExpress(OilPrice):
         super().__init__(
             "Oil Express Fuels",
             "https://www.oilexpressfuels.com/",
-            r"\$ ([\d.]+).*For (\d+) Gallons",
+            r"\$\d+.\d+",
             "wsite-content-title",
         )
 
     def extract_prices(self, elements):
         prices = []
         for elem in elements:
-            match = self.pattern.search(elem.text)
-            if match:
-                price = Decimal(match.group(1))
-                quantity = int(match.group(2))  # Parse the quantity from the match
-                prices.append((quantity, price))
+            if self.pattern != None:
+                match = self.pattern.search(elem.text)
+                if match:
+                    price = Decimal(match.group(1))
+                    quantity = int(match.group(2))  # Parse the quantity from the match
+                    prices.append((quantity, price))
         return prices
 
 
@@ -96,11 +98,12 @@ class OilPatchFuel(OilPrice):
     def extract_prices(self, elements):
         prices = []
         for elem in elements:
-            match = self.pattern.search(elem.text)
-            if match:
-                price = Decimal(match.group(1))
-                quantity = int(match.group(2))
-                prices.append((quantity, price))  # Reversed to (quantity, price)
+            if self.pattern != None:
+                match = self.pattern.search(elem.text)
+                if match:
+                    price = Decimal(match.group(1))
+                    quantity = int(match.group(2))
+                    prices.append((quantity, price))  # Reversed to (quantity, price)
         return prices
 
 
@@ -116,11 +119,12 @@ class AllStateFuel(OilPrice):
     def extract_prices(self, elements):
         prices = []
         for elem in elements:
-            matches = self.pattern.findall(elem.text)
-            for match in matches:
-                quantity = int(match[0])
-                price = Decimal(match[1])
-                prices.append((quantity, price))
+            if self.pattern != None:
+                matches = self.pattern.findall(elem.text)
+                for match in matches:
+                    quantity = int(match[0])
+                    price = Decimal(match[1])
+                    prices.append((quantity, price))
         return prices
 
 
@@ -131,10 +135,8 @@ class OilDepot(OilPrice):
     def get_prices(self):
         response = requests.get(self.supplier_url, headers=self.headers)
         soup = BeautifulSoup(response.content, "html.parser")
-        elements = soup.find_all(
-            class_=lambda x: x
-            and x.startswith("et_pb_pricing_table et_pb_pricing_table_")
-        )
+        elements = [soup.find_all("span", class_="et_pb_sum")[-1]]
+        print(elements)
         prices = self.extract_prices(elements)
         prices = list(set(prices))
         return {
@@ -147,18 +149,8 @@ class OilDepot(OilPrice):
         prices = []
         for elem in elements:
             try:
-                title = elem.find(class_="et_pb_pricing_title").text
-                price_info = elem.find(class_="et_pb_et_price").text.strip()
-                quantity_match = re.search(r"(\d+)", title)
-                price_match = re.search(
-                    r"\$\*?([0-9.]+)", price_info
-                )  # adjusted regex to match optional *
-                if quantity_match and price_match:
-                    quantity = int(quantity_match.group(1))
-                    price = Decimal(price_match.group(1).replace(",", ""))
-                    if quantity != 150:
-                        price = price / quantity
-                    prices.append((quantity, price))
+                eleText: str = elem.text
+                prices.append((150, float(eleText[1:])))
             except Exception as e:
                 print(f"Failed to parse element: {elem}")
                 print(f"Error: {str(e)}")
