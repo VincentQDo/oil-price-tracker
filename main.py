@@ -31,6 +31,7 @@ class OilPrice:
     def get_prices(self):
         response = requests.get(self.supplier_url, headers=self.headers)
         soup = BeautifulSoup(response.content, "html.parser")
+        print(soup)
         price_elements = soup.find_all(class_=self.class_name)
         prices = self.extract_prices(price_elements)
         prices = list(set(prices))
@@ -63,28 +64,6 @@ class DanBell(OilPrice):
                     price = Decimal(match.group(2))
                     prices.append((quantity, price))
         return prices
-
-
-class OilExpress(OilPrice):
-    def __init__(self):
-        super().__init__(
-            "Oil Express Fuels",
-            "https://www.oilexpressfuels.com/",
-            r"\$\d+.\d+",
-            "wsite-content-title",
-        )
-
-    def extract_prices(self, elements):
-        prices = []
-        for elem in elements:
-            if self.pattern != None:
-                match = self.pattern.search(elem.text)
-                if match:
-                    price = Decimal(match.group(1))
-                    quantity = int(match.group(2))  # Parse the quantity from the match
-                    prices.append((quantity, price))
-        return prices
-
 
 class OilPatchFuel(OilPrice):
     def __init__(self):
@@ -174,7 +153,7 @@ def store_prices(prices, supplier_name, supplier_url):
 
 
 def job(event, lambda_context):
-    suppliers = [OilExpress(), DanBell(), AllStateFuel(), OilPatchFuel(), OilDepot()]
+    suppliers = [DanBell(), AllStateFuel(), OilPatchFuel(), OilDepot()]
     for supplier in suppliers:
         data = supplier.get_prices()
         print("Parsed prices: ", data)
