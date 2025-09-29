@@ -31,16 +31,21 @@ router.post("/", async (req, res) => {
     res.status(400).send("Bad Request: Missing request body");
     return;
   }
-  if (
-    !body.date ||
-    !body.supplier_name ||
-    !body.supplier_url ||
-    typeof body.price !== "number"
-  ) {
-    res.status(400).send("Bad Request: Missing required fields");
-    return;
+
+  for (const item of body) {
+    if (
+      !item.date ||
+      !item.supplier_name ||
+      !item.supplier_url ||
+      typeof item.price !== "number"
+    ) {
+      console.log("Invalid item:", item);
+      res.status(400).send("Bad Request: Missing required fields in item");
+      return;
+    }
   }
-  await addPrices([req.body]);
+
+  await addPrices(body);
   res.status(201).send("Oil price entry created");
 });
 

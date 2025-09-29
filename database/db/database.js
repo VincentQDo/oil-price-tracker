@@ -53,11 +53,7 @@ export function getPrices(limit = 0, offset = 0, supplier) {
   lim = Math.min(lim, 200);
   const off = Number.isSafeInteger(offset) ? offset : 0;
 
-  console.log(
-    "Fetching oil prices with the following limit and offset:",
-    lim,
-    off,
-  );
+  console.log(`Fetching prices with limit=${lim}, offset=${off}, supplier=${supplier}`);
 
   return new Promise((resolve, reject) => {
     const params = [];
