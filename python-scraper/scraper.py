@@ -1,9 +1,11 @@
 from datetime import datetime
+import os
 import requests
 from bs4 import BeautifulSoup
 import re
 from decimal import Decimal
 
+API_URL = os.getenv("API_URL", "http://localhost:8000/prices")
 
 class OilPrice:
     headers = {
@@ -135,24 +137,30 @@ class OilDepot(OilPrice):
 
 
 def store_prices(prices, supplier_name, supplier_url):
+    payload = []
     for index, (quantity, price) in enumerate(prices):
         if quantity == 150:
             item = {
-                "date": datetime.now().isoformat(),
-                "gallons": quantity,
-                "price": price,
+                "date": datetime.now().date().isoformat(),
+                "price": float(price),
                 "supplier_name": supplier_name,
                 "supplier_url": supplier_url,
             }
             print(f"Storing item {index + 1} of {len(prices)}")
             print(item)
+            payload.append(item)
+    if payload:
+        try:
+            resp = requests.post(API_URL, json=payload)
+            resp.raise_for_status()
+            print("✅ Successfully stored prices:", resp.text)
+        except Exception as e:
+            print("❌ Failed to store prices:", e)
 
-
-def job(event, lambda_context):
+if __name__ == "__main__":
     suppliers = [DanBell(), AllStateFuel(), OilPatchFuel(), OilDepot()]
     for supplier in suppliers:
         data = supplier.get_prices()
         print("Parsed prices: ", data)
-        print("Storing prices in DynamoDB...")
         store_prices(data["prices"], data["supplier_name"], data["supplier_url"])
     print("Done!")

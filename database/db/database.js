@@ -105,7 +105,15 @@ export function addPrices(prices) {
 
       const stmt = db.prepare(sql);
       for (const { date, supplier_name, supplier_url, price } of prices) {
-        stmt.run([date, supplier_name, supplier_url, price]);
+        stmt.run([date, supplier_name, supplier_url, price], err => {
+          if (err) {
+            if (err.code === "SQLITE_CONSTRAINT") {
+              console.warn(`Duplicate skipped: ${date} - ${supplier_name}`);
+            } else {
+              console.error("Insert error:", err);
+            }
+          }
+        });
       }
       stmt.finalize(err => {
         if (err) {
