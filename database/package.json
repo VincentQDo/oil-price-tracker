@@ -1,0 +1,25 @@
+{
+  "name": "database",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "migrate": "node scripts/migrate.js",
+    "migrate:create": "node scripts/migrate.js create",
+    "migrate:status": "node scripts/migrate.js status",
+    "db:reset": "rm -f data/data.db && npm run migrate",
+    "start": "npm run migrate && node app.js",
+    "dev": "npm run migrate && nodemon app.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "16.5.0",
+    "express": "5.1.0",
+    "sqlite3": "5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "3.1.9"
+  }
+}

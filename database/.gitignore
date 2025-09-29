@@ -1,0 +1,29 @@
+# Database files (don't commit actual database files)
+data
+/data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Node modules
+node_modules/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
