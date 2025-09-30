@@ -22,7 +22,7 @@ jobs:
       - name: Build Docker image
         run: |
           cd ./database
-          docker build -t sqlitedb:latest .
+          docker build -t oil-tracker:latest .
 
       - name: Save Docker image as tar
         run: |
