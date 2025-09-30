@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import re
 from decimal import Decimal
 
-API_URL = os.getenv("API_URL", "http://localhost:8000/prices")
+API_URL = os.getenv("API_URL", "http://localhost:8000")
 
 class OilPrice:
     headers = {
@@ -151,7 +151,7 @@ def store_prices(prices, supplier_name, supplier_url):
             payload.append(item)
     if payload:
         try:
-            resp = requests.post(API_URL, json=payload)
+            resp = requests.post(f"{API_URL}/prices", json=payload)
             resp.raise_for_status()
             print("✅ Successfully stored prices:", resp.text)
         except Exception as e:

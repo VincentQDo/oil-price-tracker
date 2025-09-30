@@ -13,4 +13,4 @@ RUN npm ci --omit=dev
 
 COPY . .
 
-CMD [ "node", "app.js" ]
+CMD [ "npm", "start" ]
