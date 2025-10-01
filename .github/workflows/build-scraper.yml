@@ -1,0 +1,36 @@
+name: Build database
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "python-scraper/**"
+  workflow_dispatch:
+
+jobs:
+  build-docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          cd ./python-scraper
+          docker build -t oil-tracker-scraper:latest .
+
+      - name: Save Docker image as tar
+        run: |
+          docker save oil-tracker-scraper:latest -o scraper-image.tar
+
+      - name: Upload Docker image as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: scraper-image.tar
+          retention-days: 1

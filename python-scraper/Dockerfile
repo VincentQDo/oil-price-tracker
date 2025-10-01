@@ -1,10 +1,12 @@
 FROM python:3.13-slim
 
+WORKDIR /app
+
 # Install deps
-RUN pip install requests
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
 # Copy code
-WORKDIR /app
 COPY scraper.py .
 
 # Run script by default
