@@ -8,6 +8,10 @@ on:
       - "python-scraper/**"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-docker:
     runs-on: ubuntu-latest
@@ -24,13 +28,15 @@ jobs:
           cd ./python-scraper
           docker build -t oil-tracker-scraper:latest .
 
-      - name: Save Docker image as tar
-        run: |
-          docker save oil-tracker-scraper:latest -o scraper-image.tar
-
-      - name: Upload Docker image as artifact
-        uses: actions/upload-artifact@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          name: docker-image
-          path: scraper-image.tar
-          retention-days: 1
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push Docker image
+        run: |
+          IMAGE_NAME=ghcr.io/${{ github.repository }}/oil-tracker-scraper:latest
+          docker tag oil-tracker-scraper:latest $IMAGE_NAME
+          docker push $IMAGE_NAME
