@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+import pprint
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -115,7 +116,11 @@ class OilDepot(OilPrice):
         response = requests.get(self.supplier_url, headers=self.headers)
         response_content = response.text
         soup = BeautifulSoup(response_content, "html.parser")
-        elements = [soup.find_all("span", class_="et_pb_sum")[-1]]
+        print("Soup content preview:", soup.prettify()[:1000])
+        print("Searching for price elements...")
+        all_prices = soup.find_all("span", class_="et_pb_sum")
+        print(f"Found {len(all_prices)} price elements.")
+        elements = [all_prices[-1]]
         print(elements)
         prices = self.extract_prices(elements)
         prices = list(set(prices))
@@ -159,7 +164,7 @@ def store_prices(prices, supplier_name, supplier_url):
             print("❌ Failed to store prices:", e)
 
 if __name__ == "__main__":
-    suppliers = [OilDepot()]
+    suppliers = [OilDepot(), DanBell(), OilPatchFuel(), AllStateFuel()]
     for supplier in suppliers:
         data = supplier.get_prices()
         print("Parsed prices: ", data)
