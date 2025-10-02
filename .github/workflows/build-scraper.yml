@@ -1,4 +1,4 @@
-name: Build database
+name: Build scraper
 
 on:
   push:
