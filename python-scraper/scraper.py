@@ -113,7 +113,8 @@ class OilDepot(OilPrice):
 
     def get_prices(self):
         response = requests.get(self.supplier_url, headers=self.headers)
-        soup = BeautifulSoup(response.content, "html.parser")
+        response_content = response.text
+        soup = BeautifulSoup(response_content, "html.parser")
         elements = [soup.find_all("span", class_="et_pb_sum")[-1]]
         print(elements)
         prices = self.extract_prices(elements)
@@ -158,7 +159,7 @@ def store_prices(prices, supplier_name, supplier_url):
             print("❌ Failed to store prices:", e)
 
 if __name__ == "__main__":
-    suppliers = [DanBell(), AllStateFuel(), OilPatchFuel(), OilDepot()]
+    suppliers = [OilDepot()]
     for supplier in suppliers:
         data = supplier.get_prices()
         print("Parsed prices: ", data)
