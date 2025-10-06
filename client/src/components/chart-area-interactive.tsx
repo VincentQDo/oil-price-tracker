@@ -72,11 +72,8 @@ export function ChartAreaInteractive(params: { data?: OilPrice[] }) {
   const chartData = Array.from(tmp, ([date, prices]) => ({
     date,
     ...prices,
-  })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   console.log("chartData", chartData);
-
-  // This is too confusing, we should be able to do the same thing if we just loop through the data once
-  // and get all supplier names and their colors
 
   const supplierNames = new Set<string>();
   chartData.forEach((item) => {
@@ -89,19 +86,17 @@ export function ChartAreaInteractive(params: { data?: OilPrice[] }) {
   const chartConfig =
     supplierNames.size > 0
       ? (Object.fromEntries(
-          Object.keys(chartData[0]) // Get an array of dict keys that includes date like so: ["date", "Supplier1", "Supplier2", ...]
-            .filter((key) => key !== "date")
-            .map((k, i) => {
-              // Create a config object like so: { Supplier 1: { label: "Supplier 1", color: "hsl(0, 70%, 50%)" }, ... }
-              // The replace simply add the spaces that were removed for the key names
-              return [
-                k,
-                {
-                  label: k.replace(/([A-Z])/g, " $1").trim(),
-                  color: `hsl(${(i * 60) % 360}, 70%, 50%)`,
-                },
-              ];
-            })
+          [...supplierNames].map((k, i) => {
+            // Create a config object like so: { Supplier 1: { label: "Supplier 1", color: "hsl(0, 70%, 50%)" }, ... }
+            // The replace simply add the spaces that were removed for the key names
+            return [
+              k,
+              {
+                label: k.replace(/([A-Z])/g, " $1").trim(),
+                color: `hsl(${(i * 60) % 360}, 70%, 50%)`,
+              },
+            ];
+          })
         ) satisfies ChartConfig)
       : ({} satisfies ChartConfig);
   console.log("chartConfig", chartConfig);
@@ -181,6 +176,7 @@ export function ChartAreaInteractive(params: { data?: OilPrice[] }) {
               tickFormatter={(value) => {
                 const date = new Date(value);
                 return date.toLocaleDateString("en-US", {
+                  year: "2-digit",
                   month: "short",
                   day: "numeric",
                 });
@@ -192,6 +188,7 @@ export function ChartAreaInteractive(params: { data?: OilPrice[] }) {
                 <ChartTooltipContent
                   labelFormatter={(value) => {
                     return new Date(value).toLocaleDateString("en-US", {
+                      year: "numeric",
                       month: "short",
                       day: "numeric",
                     });
