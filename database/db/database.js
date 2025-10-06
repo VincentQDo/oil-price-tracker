@@ -49,8 +49,8 @@ initializeDatabase();
  * @returns {Promise<OilPrice[]>} Promise of oil prices object array
  * */
 export function getPrices(limit = 0, offset = 0, supplier) {
-  let lim = Number.isSafeInteger(limit) ? Number(limit) : 100;
-  lim = Math.min(lim, 200);
+  let lim = Number.isSafeInteger(limit) ? Number(limit) : 256;
+  lim = Math.min(lim, 2048);
   const off = Number.isSafeInteger(offset) ? offset : 0;
 
   console.log(`Fetching prices with limit=${lim}, offset=${off}, supplier=${supplier}`);
