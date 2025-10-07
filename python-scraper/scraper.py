@@ -8,6 +8,7 @@ from decimal import Decimal
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 
+
 class OilPrice:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/113.0",
@@ -65,6 +66,7 @@ class DanBell(OilPrice):
                     price = Decimal(match.group(2))
                     prices.append((quantity, price))
         return prices
+
 
 class OilPatchFuel(OilPrice):
     def __init__(self):
@@ -142,6 +144,44 @@ class OilDepot(OilPrice):
         return prices
 
 
+class OilExpressFuels(OilPrice):
+    def __init__(self):
+        super().__init__(
+            "Oil Express Fuels", "https://www.oilexpressfuels.com/", None, None
+        )
+
+    def get_prices(self):
+        response = requests.get(self.supplier_url, headers=self.headers)
+        response_content = response.text
+        soup = BeautifulSoup(response_content, "html.parser")
+        print("Soup content preview:", soup.prettify()[:1000])
+        print("Searching for price elements...")
+        found_elements = soup.find_all("span", class_="wixui-rich-text__text")
+        print(f"Found {len(found_elements)} price elements.")
+        prices = self.extract_prices(found_elements)
+        prices = list(set(prices))
+        print("Extracted prices:")
+        print(prices)
+        return {
+            "prices": prices,
+            "supplier_name": self.supplier_name,
+            "supplier_url": self.supplier_url,
+        }
+
+    def extract_prices(self, elements):
+        prices = []
+        for elem in elements:
+            text = elem.get_text(strip=True)
+            try:
+                # Extract the numeric value, e.g. "$3.34" → 3.34
+                clean = text.replace("$", "").replace(",", "")
+                value = float(clean)
+                prices.append((150, value))
+            except ValueError:
+                print(f"Skipping invalid price text: {text!r}")
+        return prices
+
+
 def store_prices(prices, supplier_name, supplier_url):
     payload = []
     for index, (quantity, price) in enumerate(prices):
@@ -163,8 +203,15 @@ def store_prices(prices, supplier_name, supplier_url):
         except Exception as e:
             print("❌ Failed to store prices:", e)
 
+
 if __name__ == "__main__":
-    suppliers = [OilDepot(), DanBell(), OilPatchFuel(), AllStateFuel()]
+    suppliers = [
+        OilExpressFuels(),
+        OilDepot(),
+        DanBell(),
+        OilPatchFuel(),
+        AllStateFuel(),
+    ]
     for supplier in suppliers:
         data = supplier.get_prices()
         print("Parsed prices: ", data)
