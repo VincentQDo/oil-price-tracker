@@ -83,17 +83,26 @@ export function ChartAreaInteractive(params: { data?: OilPrice[] }) {
       }
     });
   });
+
+  function stringToHue(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs(hash % 360);
+  }
+
   const chartConfig =
     supplierNames.size > 0
       ? (Object.fromEntries(
-          [...supplierNames].map((k, i) => {
+          [...supplierNames].map((k) => {
             // Create a config object like so: { Supplier 1: { label: "Supplier 1", color: "hsl(0, 70%, 50%)" }, ... }
             // The replace simply add the spaces that were removed for the key names
             return [
               k,
               {
                 label: k.replace(/([A-Z])/g, " $1").trim(),
-                color: `hsl(${(i * 60) % 360}, 70%, 50%)`,
+                color: `hsl(${stringToHue(k)}, 70%, 50%)`,
               },
             ];
           })
