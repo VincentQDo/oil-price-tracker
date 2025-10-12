@@ -7,7 +7,9 @@ export function SiteHeader() {
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6 my-2">
         <Button variant="ghost">
           <a href="#">
-            <span className="text-base font-semibold">Oil Price Tracker</span>
+            <span className="text-base font-semibold">
+              Tri-State Heating Oil Tracker
+            </span>
           </a>
         </Button>
         <div className="ml-auto flex items-center gap-2">
