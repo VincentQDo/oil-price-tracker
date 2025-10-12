@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
@@ -159,23 +159,15 @@ export function ChartAreaInteractive(params: { data?: OilPrice[] }) {
           config={chartConfig}
           className="aspect-auto h-[250px] w-full"
         >
-          <AreaChart data={chartData}>
-            <defs>
-              {Object.entries(chartConfig).map(([key, { color }]) => (
-                <linearGradient
-                  id={`fill${key}`}
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                  key={key}
-                >
-                  <stop offset="5%" stopColor={color} stopOpacity={1.0} />
-                  <stop offset="95%" stopColor={color} stopOpacity={0.1} />
-                </linearGradient>
-              ))}
-            </defs>
+          <LineChart data={chartData}>
             <CartesianGrid vertical={false} />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              width={40}
+              domain={["auto", "auto"]}
+            />
             <XAxis
               dataKey="date"
               tickLine={false}
@@ -207,19 +199,19 @@ export function ChartAreaInteractive(params: { data?: OilPrice[] }) {
               }
             />
             {Object.entries(chartConfig).map(([key, { color, label }]) => (
-              <Area
+              <Line
                 key={key}
                 dataKey={key}
-                type="natural"
-                fill={`url(#fill${key})`}
+                type="monotone"
                 stroke={color}
-                stackId="a"
+                strokeWidth={2}
+                opacity={0.9}
                 name={label}
                 isAnimationActive={false}
                 dot={false}
               />
             ))}
-          </AreaChart>
+          </LineChart>
         </ChartContainer>
       </CardContent>
     </Card>
