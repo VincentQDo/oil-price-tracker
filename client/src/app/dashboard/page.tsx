@@ -14,7 +14,7 @@ export default async function Page() {
   }
   const req = await fetch(API_URL + "/prices", {
     headers: {
-      "x-api-key": "API_KEY",
+      "x-api-key": API_KEY,
     },
   });
 
