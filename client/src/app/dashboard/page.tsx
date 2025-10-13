@@ -3,6 +3,7 @@ import { OilPrice, SectionCards } from "@/components/section-cards";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { AlertCircleIcon } from "lucide-react";
 
+// Revalidate this page every 10 minutes to fetch fresh data
 export const revalidate = 600; // 10 minutes
 
 export default async function Page() {
