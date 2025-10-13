@@ -14,6 +14,12 @@ app.use(express.json());
 app.use((req, res, next) => {
   const apiKey = req.header("x-api-key");
   if (API_KEY && apiKey !== API_KEY) {
+    console.error("Unauthorized access attempt detected", {
+      providedKey: apiKey,
+      origin: req.headers.origin || "unknown",
+      ip: req.ip || "unknown",
+      at: new Date().toISOString(),
+    });
     return res.status(401).json({ error: "Unauthorized" });
   }
   next();
