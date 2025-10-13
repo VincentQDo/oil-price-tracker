@@ -17,11 +17,22 @@ app.use((req, res, next) => {
     console.error("Unauthorized access attempt detected", {
       providedKey: apiKey,
       origin: req.headers.origin || "unknown",
-      ip: req.ip || "unknown",
+      referer: req.headers.referer || "unknown",
+      ip: req.headers['cf-connecting-ip'] || req.ip || "unknown",
+      originIp: req.headers["x-forwarded-for"] || "unknown",
+      userAgent: req.headers['user-agent'] || 'unknown',
       at: new Date().toISOString(),
     });
     return res.status(401).json({ error: "Unauthorized" });
   }
+  console.error("Authorized request", {
+      origin: req.headers.origin || "unknown",
+      referer: req.headers.referer || "unknown",
+      ip: req.headers['cf-connecting-ip'] || req.ip || "unknown",
+      originIp: req.headers["x-forwarded-for"] || "unknown",
+      userAgent: req.headers['user-agent'] || 'unknown',
+      at: new Date().toISOString(),
+    });
   next();
 });
 
