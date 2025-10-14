@@ -7,6 +7,7 @@ import re
 from decimal import Decimal
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
+API_KEY = os.getenv("API_KEY", "your_api_key")
 
 
 class OilPrice:
@@ -197,7 +198,15 @@ def store_prices(prices, supplier_name, supplier_url):
             payload.append(item)
     if payload:
         try:
-            resp = requests.post(f"{API_URL}/prices", json=payload)
+            resp = requests.post(
+                f"{API_URL}/prices",
+                json=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "x-api-key": API_KEY,
+                },
+            )
             resp.raise_for_status()
             print("✅ Successfully stored prices:", resp.text)
         except Exception as e:
