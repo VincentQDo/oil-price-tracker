@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import random
 import re
+import sys
 import threading
 import time
 
@@ -21,6 +22,7 @@ REQUEST_TIMEOUT_SECONDS = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "30"))
 SCRAPE_RETRY_DELAYS_MINUTES = [5, 10, 15]
 STEADY_STATE_INTERVAL_MINUTES_RANGE = (13, 17)
 STORE_RETRY_DELAYS_SECONDS = [5, 10, 20, 40]
+MAX_SCRAPE_ATTEMPTS = 10
 PRICE_QUANTIZER = Decimal("0.01")
 SUPPLIER_CONFIG_PATH = Path(__file__).with_name("suppliers.json")
 
@@ -248,7 +250,8 @@ def build_payload(prices, supplier_name, supplier_url):
     return payload
 
 
-def store_prices(prices, supplier_name, supplier_url):
+
+def store_prices(prices, supplier_name, supplier_url, stop_event: threading.Event):
     payload = build_payload(prices, supplier_name, supplier_url)
     if not payload:
         log_event(
@@ -262,7 +265,7 @@ def store_prices(prices, supplier_name, supplier_url):
 
     for attempt_number, retry_delay_seconds in enumerate([0] + STORE_RETRY_DELAYS_SECONDS, start=1):
         if retry_delay_seconds > 0:
-            time.sleep(retry_delay_seconds)
+            stop_event.wait(retry_delay_seconds)
 
         try:
             response = requests.post(
@@ -313,10 +316,15 @@ def get_scrape_retry_delay_minutes(attempt_number):
 def run_supplier_once(supplier, stop_event):
     scrape_attempt = 1
 
-    while not stop_event.is_set() or scrape_attempt < 10:
+    while not stop_event.is_set() and scrape_attempt <= MAX_SCRAPE_ATTEMPTS:
         try:
             data = supplier.get_prices()
             stored = store_prices(data["prices"], data["supplier_name"], data["supplier_url"])
+            if not stored:
+                raise RuntimeError(
+                    f"Failed to store prices for {supplier.supplier_name} after "
+                    f"{len(STORE_RETRY_DELAYS_SECONDS) + 1} attempts"
+                )
             log_event(
                 logging.INFO,
                 "scrape_success",
@@ -325,7 +333,7 @@ def run_supplier_once(supplier, stop_event):
                 prices_found=data["prices"],
                 stored=stored,
             )
-            return
+            return True
         except Exception as error:
             next_delay_minutes = get_scrape_retry_delay_minutes(scrape_attempt)
             log_event(
@@ -341,18 +349,55 @@ def run_supplier_once(supplier, stop_event):
             )
             scrape_attempt += 1
 
-        stop_event.wait(next_delay_minutes * 60)
+            if scrape_attempt > MAX_SCRAPE_ATTEMPTS:
+                log_event(
+                    logging.ERROR,
+                    "scrape_exhausted",
+                    "Supplier retries exhausted",
+                    supplier_name=supplier.supplier_name,
+                    supplier_url=supplier.supplier_url,
+                    max_attempts=MAX_SCRAPE_ATTEMPTS,
+                )
+                return False
+
+        if stop_event.wait(next_delay_minutes * 60):
+            log_event(
+                logging.INFO,
+                "worker_stopped",
+                "Supplier worker stopped before completion",
+                supplier_name=supplier.supplier_name,
+            )
+            return False
+
+    if stop_event.is_set():
+        log_event(
+            logging.INFO,
+            "worker_stopped",
+            "Supplier worker stopped before completion",
+            supplier_name=supplier.supplier_name,
+        )
+        return False
+
+    return False
 
 
 def main():
     suppliers = load_suppliers()
     stop_event = threading.Event()
+    results = {}
+    results_lock = threading.Lock()
+
+    def worker(supplier):
+        result = run_supplier_once(supplier, stop_event)
+        with results_lock:
+            results[supplier.supplier_name] = result
+
     threads: list[threading.Thread] = []
 
     for supplier in suppliers:
         thread = threading.Thread(
-            target=run_supplier_once,
-            args=(supplier, stop_event),
+            target=worker,
+            args=(supplier,),
             name=f"{supplier.supplier_name}-worker",
         )
         thread.start()
@@ -373,6 +418,24 @@ def main():
         for thread in threads:
             thread.join()
 
+    failed_suppliers = [
+        supplier.supplier_name
+        for supplier in suppliers
+        if not results.get(supplier.supplier_name, False)
+    ]
+
+    if failed_suppliers:
+        log_event(
+            logging.ERROR,
+            "job_failed",
+            "One or more suppliers failed",
+            failed_suppliers=failed_suppliers,
+        )
+        return 1
+
+    log_event(logging.INFO, "job_succeeded", "All suppliers completed successfully")
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
