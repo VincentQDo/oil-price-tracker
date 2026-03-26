@@ -319,7 +319,7 @@ def run_supplier_once(supplier, stop_event):
     while not stop_event.is_set() and scrape_attempt <= MAX_SCRAPE_ATTEMPTS:
         try:
             data = supplier.get_prices()
-            stored = store_prices(data["prices"], data["supplier_name"], data["supplier_url"])
+            stored = store_prices(data["prices"], data["supplier_name"], data["supplier_url"], stop_event)
             if not stored:
                 raise RuntimeError(
                     f"Failed to store prices for {supplier.supplier_name} after "
