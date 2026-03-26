@@ -1,13 +1,80 @@
-from datetime import datetime
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import json
+import logging
 import os
-import pprint
-import requests
-from bs4 import BeautifulSoup
+from pathlib import Path
+import random
 import re
-from decimal import Decimal
+import threading
+import time
+
+from bs4 import BeautifulSoup
+import requests
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 API_KEY = os.getenv("API_KEY", "your_api_key")
+REQUEST_TIMEOUT_SECONDS = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "30"))
+SCRAPE_RETRY_DELAYS_MINUTES = [5, 10, 15]
+STEADY_STATE_INTERVAL_MINUTES_RANGE = (13, 17)
+STORE_RETRY_DELAYS_SECONDS = [5, 10, 20, 40]
+PRICE_QUANTIZER = Decimal("0.01")
+SUPPLIER_CONFIG_PATH = Path(__file__).with_name("suppliers.json")
+
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        payload = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "message": record.getMessage(),
+        }
+
+        event = getattr(record, "event", None)
+        if isinstance(event, str):
+            payload["event"] = event
+
+        fields = getattr(record, "fields", None)
+        if isinstance(fields, dict):
+            payload.update(fields)
+
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+
+        return json.dumps(payload, default=str)
+
+
+def build_logger():
+    logger = logging.getLogger("oil-price-scraper")
+    logger.setLevel(logging.INFO)
+    logger.handlers.clear()
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonFormatter())
+    logger.addHandler(handler)
+    logger.propagate = False
+    return logger
+
+
+LOGGER = build_logger()
+
+
+def log_event(level, event, message, **fields):
+    LOGGER.log(level, message, extra={"event": event, "fields": fields})
+
+
+@dataclass(frozen=True)
+class SupplierConfig:
+    kind: str
+    supplier_name: str
+    supplier_url: str
+    pattern: str | None = None
+    class_name: str | None = None
+    tag_name: str | None = None
+    quantity: int = 150
 
 
 class OilPrice:
@@ -17,7 +84,7 @@ class OilPrice:
         "Accept-Language": "en-US,en;q=0.5",
         "Accept-Encoding": "gzip, deflate, br",
         "Referer": "https://www.google.com/",
-        "Connection": "keep-alive",
+        "Connection": "close",
         "Upgrade-Insecure-Requests": "1",
         "Sec-Fetch-Dest": "document",
         "Sec-Fetch-Mode": "navigate",
@@ -25,180 +92,180 @@ class OilPrice:
         "Sec-Fetch-User": "?1",
     }
 
-    def __init__(self, supplier_name, supplier_url, pattern, class_name):
-        self.supplier_name = supplier_name
-        self.supplier_url = supplier_url
-        self.pattern = re.compile(pattern) if pattern else None
-        self.class_name = class_name
+    def __init__(self, config: SupplierConfig):
+        self.config = config
+        self.supplier_name = config.supplier_name
+        self.supplier_url = config.supplier_url
+        self.pattern = re.compile(config.pattern) if config.pattern else None
+        self.class_name = config.class_name
+        self.tag_name = config.tag_name
+        self.quantity = config.quantity
+
+    def fetch_document(self):
+        response = requests.get(
+            self.supplier_url,
+            headers=self.headers,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        return BeautifulSoup(response.text, "html.parser")
 
     def get_prices(self):
-        response = requests.get(self.supplier_url, headers=self.headers)
-        soup = BeautifulSoup(response.content, "html.parser")
-        print(soup)
-        price_elements = soup.find_all(class_=self.class_name)
-        prices = self.extract_prices(price_elements)
-        prices = list(set(prices))
+        soup = self.fetch_document()
+        elements = self.select_elements(soup)
+        if not elements:
+            raise ValueError(f"No candidate price elements found for {self.supplier_name}")
+
+        prices = self.extract_prices(elements)
+        if not prices:
+            raise ValueError(f"No prices extracted for {self.supplier_name}")
+
+        deduped_prices = sorted(set(prices), key=lambda item: (item[0], item[1]))
         return {
-            "prices": prices,
+            "prices": deduped_prices,
             "supplier_name": self.supplier_name,
             "supplier_url": self.supplier_url,
         }
+
+    def select_elements(self, soup):
+        if not self.class_name:
+            raise ValueError(f"class_name is not configured for {self.supplier_name}")
+        return soup.find_all(class_=self.class_name)
 
     def extract_prices(self, elements):
         raise NotImplementedError
 
 
-class DanBell(OilPrice):
-    def __init__(self):
-        super().__init__(
-            "Dan Bell Oil",
-            "http://www.danbelloil.com/",
-            r"(\d+) gallons or more-\s*\$([\d.]+) per gallon",
-            "kvtext",
-        )
-
+class RegexOilPrice(OilPrice):
     def extract_prices(self, elements):
         prices = []
-        for elem in elements:
-            if self.pattern != None:
-                match = self.pattern.search(elem.text)
-                if match:
-                    quantity = int(match.group(1))
-                    price = Decimal(match.group(2))
-                    prices.append((quantity, price))
+        for element in elements:
+            matches = self.extract_matches(element.get_text(" ", strip=True))
+            for quantity, price_text in matches:
+                prices.append((int(quantity), parse_price_decimal(price_text)))
         return prices
 
-
-class OilPatchFuel(OilPrice):
-    def __init__(self):
-        super().__init__(
-            "Oil Patch Fuel",
-            "https://oilpatchfuel.com/",
-            r"\$(\d+\.\d+) per gallon for orders of (\d+) gallons or more\*",
-            "et_pb_text_inner",
-        )
-
-    def extract_prices(self, elements):
-        prices = []
-        for elem in elements:
-            if self.pattern != None:
-                match = self.pattern.search(elem.text)
-                if match:
-                    price = Decimal(match.group(1))
-                    quantity = int(match.group(2))
-                    prices.append((quantity, price))  # Reversed to (quantity, price)
-        return prices
+    def extract_matches(self, text):
+        raise NotImplementedError
 
 
-class AllStateFuel(OilPrice):
-    def __init__(self):
-        super().__init__(
-            "Allstate Fuel Oil",
-            "https://www.allstatefuel.com/",
-            r"(\d+) Gallons or more\s*:?\s*\$([\d.]+)",
-            "lh-1 size-20",
-        )
+class DanBell(RegexOilPrice):
+    def extract_matches(self, text):
+        if self.pattern:
+            match = self.pattern.search(text)
+            return [(match.group(1), match.group(2))] if match else []
+        else:
+            return []
 
-    def extract_prices(self, elements):
-        prices = []
-        for elem in elements:
-            if self.pattern != None:
-                matches = self.pattern.findall(elem.text)
-                for match in matches:
-                    quantity = int(match[0])
-                    price = Decimal(match[1])
-                    prices.append((quantity, price))
-        return prices
+
+class OilPatchFuel(RegexOilPrice):
+    def extract_matches(self, text):
+        if self.pattern:
+            match = self.pattern.search(text)
+            return [(match.group(2), match.group(1))] if match else []
+        else:
+            return []
+
+
+class AllStateFuel(RegexOilPrice):
+    def extract_matches(self, text):
+        if self.pattern:
+            return self.pattern.findall(text)
+        else:
+            return []
 
 
 class OilDepot(OilPrice):
-    def __init__(self):
-        super().__init__("Oil Depot Inc", "https://oildepotinc.com/", None, None)
-
-    def get_prices(self):
-        response = requests.get(self.supplier_url, headers=self.headers)
-        response_content = response.text
-        soup = BeautifulSoup(response_content, "html.parser")
-        print("Soup content preview:", soup.prettify()[:1000])
-        print("Searching for price elements...")
-        all_prices = soup.find_all("span", class_="et_pb_sum")
-        print(f"Found {len(all_prices)} price elements.")
-        elements = [all_prices[-1]]
-        print(elements)
-        prices = self.extract_prices(elements)
-        prices = list(set(prices))
-        return {
-            "prices": prices,
-            "supplier_name": self.supplier_name,
-            "supplier_url": self.supplier_url,
-        }
+    def select_elements(self, soup):
+        if not self.class_name or not self.tag_name:
+            raise ValueError("Oil Depot config is missing tag or class selectors")
+        price_elements = soup.find_all(self.tag_name, class_=self.class_name)
+        if not price_elements:
+            return []
+        return [price_elements[-1]]
 
     def extract_prices(self, elements):
-        prices = []
-        for elem in elements:
-            try:
-                eleText: str = elem.text
-                prices.append((150, float(eleText[1:])))
-            except Exception as e:
-                print(f"Failed to parse element: {elem}")
-                print(f"Error: {str(e)}")
-        return prices
+        return [(self.quantity, parse_price_decimal(elements[0].get_text(strip=True)))]
 
 
 class OilExpressFuels(OilPrice):
-    def __init__(self):
-        super().__init__(
-            "Oil Express Fuels", "https://www.oilexpressfuels.com/", None, None
-        )
-
-    def get_prices(self):
-        response = requests.get(self.supplier_url, headers=self.headers)
-        response_content = response.text
-        soup = BeautifulSoup(response_content, "html.parser")
-        print("Soup content preview:", soup.prettify()[:1000])
-        print("Searching for price elements...")
-        found_elements = soup.find_all("span", class_="wixui-rich-text__text")
-        print(f"Found {len(found_elements)} price elements.")
-        prices = self.extract_prices(found_elements)
-        prices = list(set(prices))
-        print("Extracted prices:")
-        print(prices)
-        return {
-            "prices": prices,
-            "supplier_name": self.supplier_name,
-            "supplier_url": self.supplier_url,
-        }
+    PRICE_PATTERN = re.compile(r"\$(\d+(?:\.\d+)?)")
 
     def extract_prices(self, elements):
         prices = []
-        for elem in elements:
-            text = elem.get_text(strip=True)
-            try:
-                # Extract the numeric value, e.g. "$3.34" → 3.34
-                clean = text.replace("$", "").replace(",", "")
-                value = float(clean)
-                prices.append((150, value))
-            except ValueError:
-                print(f"Skipping invalid price text: {text!r}")
+        for element in elements:
+            text = element.get_text(" ", strip=True)
+            match = self.PRICE_PATTERN.search(text)
+            if match:
+                prices.append((self.quantity, parse_price_decimal(match.group(1))))
         return prices
 
 
-def store_prices(prices, supplier_name, supplier_url):
+SUPPLIER_TYPES = {
+    "dan_bell": DanBell,
+    "oil_patch_fuel": OilPatchFuel,
+    "all_state_fuel": AllStateFuel,
+    "oil_depot": OilDepot,
+    "oil_express_fuels": OilExpressFuels,
+}
+
+
+def parse_price_decimal(raw_value):
+    cleaned_value = raw_value.replace("$", "").replace(",", "").replace("*", "").strip()
+    try:
+        decimal_value = Decimal(cleaned_value)
+    except InvalidOperation as error:
+        raise ValueError(f"Invalid price value: {raw_value!r}") from error
+    return decimal_value.quantize(PRICE_QUANTIZER, rounding=ROUND_HALF_UP)
+
+
+def load_suppliers():
+    with SUPPLIER_CONFIG_PATH.open("r", encoding="utf-8") as config_file:
+        supplier_dicts = json.load(config_file)
+
+    suppliers = []
+    for supplier_dict in supplier_dicts:
+        config = SupplierConfig(**supplier_dict)
+        supplier_type = SUPPLIER_TYPES.get(config.kind)
+        if supplier_type is None:
+            raise ValueError(f"Unsupported supplier type: {config.kind}")
+        suppliers.append(supplier_type(config))
+    return suppliers
+
+
+def build_payload(prices, supplier_name, supplier_url):
     payload = []
-    for index, (quantity, price) in enumerate(prices):
+    for quantity, price in prices:
         if quantity == 150:
-            item = {
-                "date": datetime.now().date().isoformat(),
-                "price": float(price),
-                "supplier_name": supplier_name,
-                "supplier_url": supplier_url,
-            }
-            print(f"Storing item {index + 1} of {len(prices)}")
-            print(item)
-            payload.append(item)
-    if payload:
+            payload.append(
+                {
+                    "date": datetime.now().date().isoformat(),
+                    "price": float(price),
+                    "supplier_name": supplier_name,
+                    "supplier_url": supplier_url,
+                }
+            )
+    return payload
+
+
+def store_prices(prices, supplier_name, supplier_url):
+    payload = build_payload(prices, supplier_name, supplier_url)
+    if not payload:
+        log_event(
+            logging.INFO,
+            "store_skipped",
+            "No prices matched the storage criteria",
+            supplier_name=supplier_name,
+            supplier_url=supplier_url,
+        )
+        return False
+
+    for attempt_number, retry_delay_seconds in enumerate([0] + STORE_RETRY_DELAYS_SECONDS, start=1):
+        if retry_delay_seconds > 0:
+            time.sleep(retry_delay_seconds)
+
         try:
-            resp = requests.post(
+            response = requests.post(
                 f"{API_URL}/prices",
                 json=payload,
                 headers={
@@ -206,23 +273,106 @@ def store_prices(prices, supplier_name, supplier_url):
                     "Accept": "application/json",
                     "x-api-key": API_KEY,
                 },
+                timeout=REQUEST_TIMEOUT_SECONDS,
             )
-            resp.raise_for_status()
-            print("✅ Successfully stored prices:", resp.text)
-        except Exception as e:
-            print("❌ Failed to store prices:", e)
+            response.raise_for_status()
+            log_event(
+                logging.INFO,
+                "store_success",
+                "Stored prices successfully",
+                supplier_name=supplier_name,
+                attempts=attempt_number,
+                items=len(payload),
+                status_code=response.status_code,
+            )
+            return True
+        except requests.RequestException as error:
+            is_last_attempt = attempt_number == len(STORE_RETRY_DELAYS_SECONDS) + 1
+            log_level = logging.ERROR if is_last_attempt else logging.WARNING
+            log_event(
+                log_level,
+                "store_failure",
+                "Failed to store prices",
+                supplier_name=supplier_name,
+                attempts=attempt_number,
+                items=len(payload),
+                error_type=type(error).__name__,
+                error=str(error),
+                retry_in_seconds=None if is_last_attempt else STORE_RETRY_DELAYS_SECONDS[attempt_number - 1],
+            )
+
+    return False
+
+
+def get_scrape_retry_delay_minutes(attempt_number):
+    if attempt_number <= len(SCRAPE_RETRY_DELAYS_MINUTES):
+        return SCRAPE_RETRY_DELAYS_MINUTES[attempt_number - 1]
+    return random.randint(*STEADY_STATE_INTERVAL_MINUTES_RANGE)
+
+
+def run_supplier_once(supplier, stop_event):
+    scrape_attempt = 1
+
+    while not stop_event.is_set() or scrape_attempt < 10:
+        try:
+            data = supplier.get_prices()
+            stored = store_prices(data["prices"], data["supplier_name"], data["supplier_url"])
+            log_event(
+                logging.INFO,
+                "scrape_success",
+                "Fetched supplier prices",
+                supplier_name=supplier.supplier_name,
+                prices_found=data["prices"],
+                stored=stored,
+            )
+            return
+        except Exception as error:
+            next_delay_minutes = get_scrape_retry_delay_minutes(scrape_attempt)
+            log_event(
+                logging.WARNING,
+                "scrape_failure",
+                "Failed to fetch supplier prices",
+                supplier_name=supplier.supplier_name,
+                supplier_url=supplier.supplier_url,
+                attempts=scrape_attempt,
+                error_type=type(error).__name__,
+                error=str(error),
+                retry_in_minutes=next_delay_minutes,
+            )
+            scrape_attempt += 1
+
+        stop_event.wait(next_delay_minutes * 60)
+
+
+def main():
+    suppliers = load_suppliers()
+    stop_event = threading.Event()
+    threads: list[threading.Thread] = []
+
+    for supplier in suppliers:
+        thread = threading.Thread(
+            target=run_supplier_once,
+            args=(supplier, stop_event),
+            name=f"{supplier.supplier_name}-worker",
+        )
+        thread.start()
+        threads.append(thread)
+        log_event(
+            logging.INFO,
+            "worker_started",
+            "Started supplier worker",
+            supplier_name=supplier.supplier_name,
+        )
+
+    try:
+        for thread in threads:
+            thread.join()
+    except KeyboardInterrupt:
+        log_event(logging.INFO, "shutdown", "Shutdown requested")
+        stop_event.set()
+        for thread in threads:
+            thread.join()
 
 
 if __name__ == "__main__":
-    suppliers = [
-        OilExpressFuels(),
-        OilDepot(),
-        DanBell(),
-        OilPatchFuel(),
-        AllStateFuel(),
-    ]
-    for supplier in suppliers:
-        data = supplier.get_prices()
-        print("Parsed prices: ", data)
-        store_prices(data["prices"], data["supplier_name"], data["supplier_url"])
-    print("Done!")
+    main()

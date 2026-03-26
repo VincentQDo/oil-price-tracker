@@ -1,0 +1,42 @@
+[
+  {
+    "kind": "oil_express_fuels",
+    "supplier_name": "Oil Express Fuels",
+    "supplier_url": "https://www.oilexpressfuels.com/",
+    "class_name": "wixui-rich-text__text",
+    "tag_name": "span",
+    "quantity": 150
+  },
+  {
+    "kind": "oil_depot",
+    "supplier_name": "Oil Depot Inc",
+    "supplier_url": "https://oildepotinc.com/",
+    "class_name": "et_pb_sum",
+    "tag_name": "span",
+    "quantity": 150
+  },
+  {
+    "kind": "dan_bell",
+    "supplier_name": "Dan Bell Oil",
+    "supplier_url": "http://www.danbelloil.com/",
+    "pattern": "(\\d+) gallons or more-\\s*\\$([\\d.]+) per gallon",
+    "class_name": "kvtext",
+    "quantity": 150
+  },
+  {
+    "kind": "oil_patch_fuel",
+    "supplier_name": "Oil Patch Fuel",
+    "supplier_url": "https://oilpatchfuel.com/",
+    "pattern": "\\$(\\d+\\.\\d+) per gallon for orders of (\\d+) gallons or more\\*",
+    "class_name": "et_pb_text_inner",
+    "quantity": 150
+  },
+  {
+    "kind": "all_state_fuel",
+    "supplier_name": "Allstate Fuel Oil",
+    "supplier_url": "https://www.allstatefuel.com/",
+    "pattern": "(\\d+) Gallons or more\\s*:?\\s*\\$([\\d.]+)",
+    "class_name": "lh-1 size-20",
+    "quantity": 150
+  }
+]

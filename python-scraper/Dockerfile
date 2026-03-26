@@ -8,6 +8,7 @@ RUN pip install -r requirements.txt
 
 # Copy code
 COPY scraper.py .
+COPY suppliers.json .
 
 # Run script by default
 CMD ["python", "scraper.py"]
